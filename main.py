@@ -1,8 +1,6 @@
 import time
 import turtle
 import sqlite3
-import random
-import math
 
 # se connecter à la base de données (ou la créer si elle n'existe pas)
 conn = sqlite3.connect('pong.db')
@@ -11,16 +9,21 @@ conn = sqlite3.connect('pong.db')
 conn.execute('''CREATE TABLE IF NOT EXISTS players
                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                  name TEXT NOT NULL,
-                 score INTEGER NOT NULL);''')
+                 score INTEGER NOT NULL,
+                 wins INTEGER NOT NULL);''')
 
 # ajouter un nouveau joueur dans la table
-def add_player(name, score):
-    conn.execute("INSERT INTO players (name, score) VALUES (?, ?)", (name, score))
+def add_player(name, score, wins):
+    tempo = conn.execute("SELECT name, wins FROM players WHERE name = (?)", (name,))
+    for (name, wins) in tempo:
+        if name == name:
+            wins += 1
+    conn.execute("INSERT INTO players (name, score, wins) VALUES (?, ?, ?)", (name, score, wins))
     conn.commit()
 
 # récupérer la liste des joueurs classés par score décroissant
 def get_players():
-    cursor = conn.execute("SELECT name, score FROM players ORDER BY score DESC")
+    cursor = conn.execute("SELECT name, MAX(wins) FROM players GROUP BY name ORDER BY wins DESC")
     return cursor.fetchall()
 
 # fermer la connexion à la base de données
@@ -64,6 +67,10 @@ ball.goto(0, 0)
 ball.dx = 4
 ball.dy = -4
 
+
+wins_a = 0
+wins_b = 0
+
 # ajouter les scores
 score_a = 0
 score_b = 0
@@ -77,26 +84,10 @@ score.goto(0, 160)
 score.write(f"{player_a_name}: {score_a}  {player_b_name}: {score_b}", align="center", font=("Courier", 16, "normal"))
 
 
-# Générer un angle aléatoire entre 30 et 150 degrés ball.dx = 4 * math.cos(angle) # Calculer la nouvelle vitesse horizontale ball.dy = 4 * math.sin(angle) # Calculer la nouvelle vitesse verticale
-def set_random_ball_direction(ball): angle = random.uniform(math.radians(30), math.radians(150))
-set_random_ball_direction(ball)
-if ball.xcor() > 290:
-    ball.goto(0, 0)
-    set_random_ball_direction(ball)
-    score_a += 1
-    score.clear()
-
-if ball.xcor() < -290:
-    ball.goto(0, 0)
-    set_random_ball_direction(ball)
-    score_b += 1
-    score.clear()
-
-
 def check_collision_with_racket(racket, ball):
     if racket.distance(ball) < 50:
-        ball.dx *= -1.5 # Augmenter la vitesse horizontale de la balle de 15%
-        ball.dy *= 1.5 # Augmenter la vitesse verticale de la balle de 15%
+        ball.dx *= -1.5 # Augmenter la vitesse horizontale de la balle de 50%
+        ball.dy *= 1.5 # Augmenter la vitesse verticale de la balle de 50%
 
 def racket_a_up():
     y = racket_a.ycor()
@@ -126,9 +117,11 @@ def racket_b_down():
         y = -190
     racket_b.sety(y)
 
+
+
 # associer les touches du clavier aux mouvements des raquettes
 screen.listen()
-screen.onkeypress(racket_a_up, "w")
+screen.onkeypress(racket_a_up, "z")
 screen.onkeypress(racket_a_down, "s")
 screen.onkeypress(racket_b_up, "Up")
 screen.onkeypress(racket_b_down, "Down")
@@ -164,8 +157,8 @@ while True:
         ball.dx *= -1
         score_b += 1
         score.clear()
-        ball.dx = 4
-        ball.dy = -4
+        ball.dx = -4
+        ball.dy = 4
         ball.goto(0, 0)
 
     score.write(f"{player_a_name}: {score_a}  {player_b_name}: {score_b}", align="center", font=("Courier", 16, "normal"))
@@ -181,35 +174,22 @@ while True:
 
     # vérifier si un joueur a gagné
     if score_a >= 5:
+        wins_a += 1
+        add_player(player_a_name, score_a, wins_a)
         score.clear()
         score.goto(0, 0)
         score.write(f"{player_a_name} wins!", align="center", font=("Courier", 16, "normal"))
-        time.sleep(3)
+        time.sleep(5)
         break
     elif score_b >= 5:
+        wins_b += 1
         score.clear()
+        add_player(player_b_name, score_b, wins_b)
         score.goto(0, 0)
         score.write(f"{player_b_name} wins!", align="center", font=("Courier", 16, "normal"))
-        time.sleep(3)
-        break
-
-# après l'affichage du message "Player A wins!" ou "Player B wins!" dans la boucle principale du jeu
-
-# enregistrer le joueur gagnant dans la base de données
-    if score_a >= 5:
-        add_player(player_a_name, score_a)
-        score.clear()
-        score.goto(0, 0)
-        score.write(f"{player_a_name} wins!", align="center", font=("Courier", 16, "normal"))
-        break
-    elif score_b >= 5:
-        add_player(player_b_name, score_b)
-        score.clear()
-        score.goto(0, 0)
-        score.write(f"{player_b_name} wins!", align="center", font=("Courier", 16, "normal"))
+        time.sleep(5)
         break
 
 # afficher les 10 meilleurs joueurs dans la console
-for i, (name, score) in enumerate(get_players()[:10], start=1):
-    print(f"{i}. {name}: {score} points")
-
+for i, (name, wins) in enumerate(get_players()[:10], start=1):
+    print(f"{i}. {name}: {wins} victoires")
